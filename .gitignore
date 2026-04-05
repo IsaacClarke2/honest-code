@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+state.json
+baseline.json
+enforce_log.json
+last_test_result.json
+sessions/
+MATE_RUSSIA_MARKET_RESEARCH.md

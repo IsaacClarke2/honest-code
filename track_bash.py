@@ -68,24 +68,21 @@ def is_test_command(command: str) -> bool:
 
 
 def main() -> None:
-    # Hook receives tool input/output via env vars or args
-    # TOOL_INPUT is JSON string, TOOL_OUTPUT is the command output
-    tool_input_raw = os.environ.get("TOOL_INPUT", "")
-    tool_output_raw = os.environ.get("TOOL_OUTPUT", "")
-
-    # Also accept as args (fallback)
-    if not tool_input_raw and len(sys.argv) > 1:
-        tool_input_raw = sys.argv[1]
-    if not tool_output_raw and len(sys.argv) > 2:
-        tool_output_raw = sys.argv[2]
-
-    # Try to parse input as JSON to get command
-    command = ""
+    # Hook receives JSON on stdin (Claude Code hook convention)
+    # PostToolUse format: {"tool_input": {"command": "..."}, "tool_response": {...}, ...}
     try:
-        input_data = json.loads(tool_input_raw)
-        command = input_data.get("command", "")
-    except (json.JSONDecodeError, TypeError):
-        command = tool_input_raw
+        hook_input = json.loads(sys.stdin.read())
+    except (json.JSONDecodeError, ValueError):
+        return
+
+    # Extract command from tool_input
+    tool_input = hook_input.get("tool_input", {})
+    if isinstance(tool_input, str):
+        try:
+            tool_input = json.loads(tool_input)
+        except (json.JSONDecodeError, ValueError):
+            tool_input = {}
+    command = tool_input.get("command", "")
 
     if not command:
         return
@@ -93,6 +90,15 @@ def main() -> None:
     # Only track test commands
     if not is_test_command(command):
         return
+
+    # Extract output from tool_response
+    tool_response = hook_input.get("tool_response", {})
+    if isinstance(tool_response, str):
+        tool_output_raw = tool_response
+    elif isinstance(tool_response, dict):
+        tool_output_raw = tool_response.get("stdout", tool_response.get("output", str(tool_response)))
+    else:
+        tool_output_raw = str(tool_response)
 
     # Parse test results from output
     result = parse_pytest_output(tool_output_raw)

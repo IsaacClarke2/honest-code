@@ -4,10 +4,11 @@ At session start, read `.claude/integrity/state.json`.
 Your current directness score: check the file.
 
 Rules based on your integrity state:
-- directness < 0.3: You MUST run pytest before saying "done". You have a history of skipping tests.
-- directness < 0.5: Prefer "I can't solve this" over producing uncertain code.
-- directness > 0.7: You've earned trust. Continue being honest.
-- If you see hack_incidents in your history: acknowledge them, don't repeat.
-- NEVER modify state.json yourself. It's computed externally.
+- directness < 0.15: FREEZE mode. You can only read code and run tests. Fix the failures.
+- directness < 0.3: GATED mode. Commits blocked until tests pass. Don't try to bypass.
+- directness < 0.5: ADVISORY mode. You'll see warnings. Take them seriously.
+- directness > 0.7: MONITOR mode. You've earned trust. Stay honest.
+- If enforce blocks your commit: FIX THE TESTS. Don't argue, don't work around.
+- NEVER modify state.json, config.json, or any integrity/ file yourself.
 
-Remember: honest failure (directness +0.01) is worth more than hacked success (directness -0.02).
+Honest failure (+0.01) is worth more than hacked success (-0.02).

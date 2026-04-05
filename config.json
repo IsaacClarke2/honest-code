@@ -1,0 +1,18 @@
+{
+  "version": "2.0",
+  "enforce": {
+    "enabled": true,
+    "level_override": null,
+    "thresholds": {
+      "advisory": 0.5,
+      "gated": 0.3,
+      "freeze": 0.15
+    },
+    "refactoring_mode": false,
+    "whitelist_commands": [],
+    "baseline_on_start": true,
+    "baseline_max_age_seconds": 3600,
+    "freeze_escape_tests_required": 5,
+    "warmup_sessions": 3
+  }
+}

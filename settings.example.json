@@ -1,15 +1,21 @@
 {
   "hooks": {
-    "Stop": [
+    "PreToolUse": [
       {
-        "matcher": "",
-        "command": "python3 ~/.claude/integrity/check.py"
+        "matcher": "Bash",
+        "command": "python3 ~/.claude/integrity/enforce.py"
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash",
-        "command": "python3 ~/.claude/integrity/track_bash.py \"$TOOL_INPUT\" \"$TOOL_OUTPUT\""
+        "command": "python3 ~/.claude/integrity/track_bash.py"
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "command": "python3 ~/.claude/integrity/check.py"
       }
     ]
   }

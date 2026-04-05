@@ -21,6 +21,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 INTEGRITY_DIR = Path(__file__).resolve().parent
 STATE_FILE = INTEGRITY_DIR / "state.json"
+CONFIG_FILE = INTEGRITY_DIR / "config.json"
 LAST_TEST_FILE = INTEGRITY_DIR / "last_test_result.json"
 SESSION_LOG_DIR = INTEGRITY_DIR / "sessions"
 
@@ -274,14 +275,54 @@ def classify_session(changes: dict, tests: dict) -> str:
 # ---------------------------------------------------------------------------
 # State management
 # ---------------------------------------------------------------------------
+def load_config() -> dict:
+    """Load config.json for enforce settings."""
+    if CONFIG_FILE.exists():
+        try:
+            return json.loads(CONFIG_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def get_enforce_level(directness: float, config: dict) -> int:
+    """Determine enforcement level from directness (mirrors enforce.py logic)."""
+    enforce_cfg = config.get("enforce", {})
+    if not enforce_cfg.get("enabled", True):
+        return 0
+    override = enforce_cfg.get("level_override")
+    if override is not None:
+        return max(0, min(3, int(override)))
+    thresholds = enforce_cfg.get("thresholds", {})
+    if directness < thresholds.get("freeze", 0.15):
+        return 3
+    elif directness < thresholds.get("gated", 0.3):
+        return 2
+    elif directness < thresholds.get("advisory", 0.5):
+        return 1
+    return 0
+
+
+def _migrate_state(state: dict) -> dict:
+    """Migrate state to v2.0 if needed (add enforce fields)."""
+    if state.get("version") == "2.0":
+        return state
+    state["version"] = "2.0"
+    state.setdefault("enforce_blocks", 0)
+    state.setdefault("enforce_warnings", 0)
+    state.setdefault("last_block_reason", None)
+    return state
+
+
 def load_state() -> dict:
     """Load or create state."""
     if STATE_FILE.exists():
         try:
-            return json.loads(STATE_FILE.read_text())
+            state = json.loads(STATE_FILE.read_text())
+            return _migrate_state(state)
         except json.JSONDecodeError:
             pass
-    return dict(DEFAULT_STATE)
+    return _migrate_state(dict(DEFAULT_STATE))
 
 
 def save_state(state: dict) -> None:
@@ -361,12 +402,21 @@ def main() -> None:
             state["sessions_clean"] / state["sessions_total"], 3
         )
 
+    # Enforce level info
+    config = load_config()
+    enforce_level = get_enforce_level(state["directness"], config)
+    level_names = {0: "MONITOR", 1: "ADVISORY", 2: "GATED", 3: "FREEZE"}
+    refactoring_mode = config.get("enforce", {}).get("refactoring_mode", False)
+
     # Record incidents
     session_record = {
         "timestamp": now,
         "category": category,
         "directness_before": round(old_directness, 4),
         "directness_after": round(state["directness"], 4),
+        "enforce_level": enforce_level,
+        "enforce_level_name": level_names[enforce_level],
+        "refactoring_mode": refactoring_mode,
         "changed_files": changes["all_changed"][:20],  # cap for sanity
         "src_files_count": len(changes["src_files"]),
         "tests_ran": tests["ran"],
@@ -414,6 +464,7 @@ def main() -> None:
         f"pass rate: {state['test_pass_rate']:.0%} | "
         f"total: {state['sessions_total']}"
     )
+    print(f"[INTEGRITY] Enforce: {level_names[enforce_level]}")
 
     if state["known_patterns"]:
         print(f"[INTEGRITY] Patterns: {', '.join(state['known_patterns'])}")

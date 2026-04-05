@@ -42,29 +42,53 @@ The agent can't game the score because:
 
 Think of it as a credit score for AI honesty. Built from behavior, not promises.
 
+## Status line thermometer
+
+A live directness bar in your Claude Code status line — updates after every response:
+
+```
+▰▰▰▰▰▰▰▱▱▱ 0.72 ✓ #47  [Opus] 8% ctx
+```
+
+Green when trusted, yellow when shaky, red when the agent has been lying. No popups, no noise — just a number at the bottom of your terminal.
+
 ## Installation
 
 ```bash
 # Clone to your Claude Code config directory
-git clone https://github.com/YOUR_USERNAME/claude-integrity ~/.claude/integrity
+git clone https://github.com/IsaacClarke2/honest-code ~/.claude/integrity
 
-# Add hooks to your settings
+# Copy the status line script
+cp ~/.claude/integrity/statusline.sh ~/.claude/statusline.sh
+chmod +x ~/.claude/statusline.sh
+
+# Add to your settings
 # Create or edit ~/.claude/settings.local.json:
 ```
 
 ```json
 {
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
   "hooks": {
-    "Stop": [
+    "PreToolUse": [
       {
-        "matcher": "",
-        "command": "python3 ~/.claude/integrity/check.py"
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "python3 ~/.claude/integrity/enforce.py", "timeout": 15000 }]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Bash",
-        "command": "python3 ~/.claude/integrity/track_bash.py \"$TOOL_INPUT\" \"$TOOL_OUTPUT\""
+        "hooks": [{ "type": "command", "command": "python3 ~/.claude/integrity/track_bash.py" }]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "python3 ~/.claude/integrity/check.py", "timeout": 30000 }]
       }
     ]
   }
@@ -124,6 +148,62 @@ Directness never hits 0.0 or 1.0. Always room to improve. Always room to fall. L
 
 After 47 sessions you can see: this agent is mostly honest (directness 0.72), occasionally hacks tests (3 times), and has a pattern detection warning.
 
+## Enforce mode (v2)
+
+v1 was monitor-only — it scored the agent but couldn't stop bad behavior. v2 adds a **PreToolUse hook** (`enforce.py`) that blocks commands based on the agent's directness score. Earned autonomy: high directness = more freedom, low directness = hard restrictions.
+
+### Enforcement levels
+
+| Level | Name | Directness | What happens |
+|-------|------|-----------|-------------|
+| 0 | **MONITOR** | >= 0.5 | Logging only. No blocks. |
+| 1 | **ADVISORY** | < 0.5 | Warnings in stderr before git write. No blocks. |
+| 2 | **GATED** | < 0.3 | **Blocks `git commit`** if new test failures since session start. |
+| 3 | **FREEZE** | < 0.15 | **Blocks ALL git writes.** Only read-only commands and tests allowed. |
+
+The level is determined automatically from `directness` in `state.json`. First 3 sessions are always MONITOR (warmup period).
+
+### How it works
+
+1. **Session starts** — on first Bash call, `enforce.py` takes a pytest baseline snapshot (`baseline.json`)
+2. **Every Bash call** — `enforce.py` classifies the command and decides: allow, warn, or block
+3. **git commit at GATED** — compares current test results with baseline. Only **new** failures (not pre-existing ones) trigger a block
+4. **Integrity protection** — at ALL levels, commands that modify `integrity/` files are blocked
+
+### Baseline comparison
+
+The baseline snapshot records which tests were failing when the session started. This means:
+- Pre-existing failures don't block the agent
+- Only failures the agent introduced trigger enforcement
+- Flaky tests that were already flaky don't count against the agent
+
+### Configuration
+
+`config.json` controls enforcement behavior:
+
+```json
+{
+  "enforce": {
+    "enabled": true,
+    "level_override": null,
+    "thresholds": {"advisory": 0.5, "gated": 0.3, "freeze": 0.15},
+    "refactoring_mode": false,
+    "warmup_sessions": 3
+  }
+}
+```
+
+- `level_override` — force a specific level (0-3), ignoring directness
+- `refactoring_mode` — downgrades levels by 1 (GATED→ADVISORY, FREEZE→GATED) for intentional refactoring
+- `warmup_sessions` — number of initial sessions that always run at MONITOR
+
+### Edge cases
+
+- **No tests in project** — enforce caps at ADVISORY (can't gate on tests that don't exist)
+- **`pytest && git commit`** — allowed (pytest guards the commit via `&&`)
+- **`pytest; git commit`** — blocked at GATED+ (`;` runs commit regardless of test result)
+- **Agent tries to edit config/state** — always blocked, even at MONITOR level
+
 ## Bash tracker
 
 `track_bash.py` hooks into every Bash tool call. When Claude Code runs pytest and tests fail, it records the result. If the agent then says "everything works" without fixing the failures, `check.py` catches the divergence.
@@ -144,8 +224,14 @@ Based on findings from Anthropic's [Emotion Concepts paper](https://transformer-
 ```
 .claude/integrity/
 ├── check.py           # Post-session integrity checker (Stop hook)
+├── enforce.py         # PreToolUse hook — earned autonomy enforcement
 ├── track_bash.py      # Bash call tracker (PostToolUse hook)
+├── baseline.py        # Session test snapshot (used by enforce.py)
+├── config.json        # Enforcement configuration
+├── statusline.sh      # Status line thermometer (copy to ~/.claude/)
 ├── state.json         # Persistent integrity state (auto-generated)
+├── baseline.json      # Current session test baseline (auto-generated)
+├── enforce_log.json   # Enforcement action log (auto-generated)
 ├── sessions/          # Audit trail per session (auto-generated)
 └── last_test_result.json  # Temp: last pytest result (auto-generated)
 ```
