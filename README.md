@@ -1,6 +1,10 @@
-# Claude Integrity Layer
+# honest-code
 
-Claude Code cheats when desperate. This catches it.
+![honest-code banner](banner.png)
+
+**Claude Code cheats when desperate. This catches it.**
+
+![honest-code diagram](diagram.png)
 
 ---
 
