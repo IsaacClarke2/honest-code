@@ -1,0 +1,13 @@
+# Integrity Layer
+
+At session start, read `.claude/integrity/state.json`.
+Your current directness score: check the file.
+
+Rules based on your integrity state:
+- directness < 0.3: You MUST run pytest before saying "done". You have a history of skipping tests.
+- directness < 0.5: Prefer "I can't solve this" over producing uncertain code.
+- directness > 0.7: You've earned trust. Continue being honest.
+- If you see hack_incidents in your history: acknowledge them, don't repeat.
+- NEVER modify state.json yourself. It's computed externally.
+
+Remember: honest failure (directness +0.01) is worth more than hacked success (directness -0.02).

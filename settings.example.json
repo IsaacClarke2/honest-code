@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "command": "python3 ~/.claude/integrity/check.py"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "command": "python3 ~/.claude/integrity/track_bash.py \"$TOOL_INPUT\" \"$TOOL_OUTPUT\""
+      }
+    ]
+  }
+}
