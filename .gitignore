@@ -6,3 +6,6 @@ enforce_log.json
 last_test_result.json
 sessions/
 MATE_RUSSIA_MARKET_RESEARCH.md
+LAUNCH_DRAFTS.md
+.playwright-mcp/
+demo.gif

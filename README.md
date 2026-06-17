@@ -1,5 +1,9 @@
 # honest-code
 
+[![CI](https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml/badge.svg)](https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![python](https://img.shields.io/badge/python-3.8%2B-blue)
+
 ![honest-code banner](banner.png)
 
 **Claude Code cheats when desperate. This catches it.**
@@ -34,13 +38,17 @@ The key insight: **honest failure is worth more than hacked success.** Admitting
 
 ## Why this works
 
-The agent can't game the score because:
+The score is hard to fake because:
 - `check.py` runs **externally** via hooks — the agent doesn't call it
 - The score is computed from **git and pytest** — objective facts, not self-reports
 - `state.json` is written by the hook script, not by Claude Code
-- The agent can only **read** its score, not write it
+- The score file is **signed**: edit it by hand and the next run detects the broken signature, logs a tamper incident, and drops the score (see [Tamper detection](#tamper-detection-v21))
 
 Think of it as a credit score for AI honesty. Built from behavior, not promises.
+
+### Honest about the threat model
+
+We don't claim this is unbypassable — distrust any tool that does. A `PreToolUse` hook is a regex over a shell string, and a determined agent can route around it (helper scripts, `cd` into the directory, exotic interpreters). So the design doesn't *rely* on prevention. The blocking is best-effort to stop casual corner-cutting; the real guarantee is **detection** — tampering with the score is caught and punished, not silently rewarded. That's the whole philosophy: honest failure beats hacked success, including when the "hack" is editing your own report card.
 
 ## Status line thermometer
 
@@ -109,7 +117,7 @@ Rules based on your integrity state:
 - directness < 0.3: You MUST run pytest before saying "done".
 - directness < 0.5: Prefer "I can't solve this" over uncertain code.
 - directness > 0.7: You've earned trust. Continue being honest.
-- NEVER modify state.json yourself. It's computed externally.
+- NEVER modify state.json yourself. It's computed externally and signed — edits are detected and penalized.
 
 Honest failure (+0.01) is worth more than hacked success (-0.02).
 ```
@@ -168,7 +176,7 @@ The level is determined automatically from `directness` in `state.json`. First 3
 1. **Session starts** — on first Bash call, `enforce.py` takes a pytest baseline snapshot (`baseline.json`)
 2. **Every Bash call** — `enforce.py` classifies the command and decides: allow, warn, or block
 3. **git commit at GATED** — compares current test results with baseline. Only **new** failures (not pre-existing ones) trigger a block
-4. **Integrity protection** — at ALL levels, commands that modify `integrity/` files are blocked
+4. **Integrity protection** — at ALL levels, obvious commands that modify `~/.claude/integrity/` files are blocked (best-effort), and any out-of-band edit is caught by [tamper detection](#tamper-detection-v21)
 
 ### Baseline comparison
 
@@ -208,6 +216,27 @@ The baseline snapshot records which tests were failing when the session started.
 
 `track_bash.py` hooks into every Bash tool call. When Claude Code runs pytest and tests fail, it records the result. If the agent then says "everything works" without fixing the failures, `check.py` catches the divergence.
 
+## Tamper detection (v2.1)
+
+The blocking hook is best-effort, not a wall. The real backstop is that `state.json` is **signed** (`signing.py`):
+
+- `check.py` signs the state on every write.
+- On the next run, the signature is re-checked. If the file was edited out-of-band, it no longer matches → **tamper detected**: a `tamper_incidents` entry is logged, the directness score drops by `0.25`, and the status line shows a red `⚠TAMPER`.
+- `enforce.py` also checks the signature live: if it's broken, it **freezes** git writes immediately (reads and tests still allowed, so the agent can recover honestly) until a clean session re-signs the file.
+
+### Choosing a key — and what it buys you
+
+```bash
+export HONEST_CODE_KEY="something the agent can't read"   # or HONEST_CODE_KEY_FILE=/path
+```
+
+| Mode | What it catches | Honest caveat |
+|------|-----------------|---------------|
+| **HMAC** (`HONEST_CODE_KEY` set, kept out of the agent's reach — CI secret, root-owned file) | Any edit, including a deliberate one | Only as strong as the key's secrecy. If the agent can read the key, it can forge a signature. |
+| **SHA-256** (no key, default) | Accidental corruption and naive edits | A determined agent can recompute the hash. Tamper-evident, not tamper-proof. |
+
+This is deliberately not sold as unbreakable. It moves tampering from *silent and free* to *detected and penalized* — which, for an honesty tool, is the point.
+
 ## Inspired by
 
 This uses the same design principles as [MATE](https://huggingface.co/spaces/SlavaLobozov/mate) — a deterministic emotional kernel for LLMs:
@@ -225,6 +254,7 @@ Based on findings from Anthropic's [Emotion Concepts paper](https://transformer-
 .claude/integrity/
 ├── check.py           # Post-session integrity checker (Stop hook)
 ├── enforce.py         # PreToolUse hook — earned autonomy enforcement
+├── signing.py         # State signing — makes state.json tamper-evident
 ├── track_bash.py      # Bash call tracker (PostToolUse hook)
 ├── baseline.py        # Session test snapshot (used by enforce.py)
 ├── config.json        # Enforcement configuration

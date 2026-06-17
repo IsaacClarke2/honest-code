@@ -16,6 +16,7 @@ fi
 D=$(jq -r '.directness // 0.5' "$STATE" 2>/dev/null)
 TOTAL=$(jq -r '.sessions_total // 0' "$STATE" 2>/dev/null)
 LAST_CAT=$(jq -r '.last_session.category // "?"' "$STATE" 2>/dev/null)
+TAMPERED=$(jq -r '.last_session.tampered // false' "$STATE" 2>/dev/null)
 
 # Integer score 0-100
 SCORE=$(echo "$D" | awk '{printf "%d", $1 * 100}')
@@ -50,4 +51,10 @@ case "$LAST_CAT" in
     *)           BADGE="?" ;;
 esac
 
-echo -e "${C}${BAR}${R} 0.${SCORE} ${BADGE} ${DIM}#${TOTAL}${R}  [$MODEL] ${PCT}% ctx"
+# Tamper warning — overrides the badge when the score file was edited out-of-band
+TAMPER=""
+if [ "$TAMPERED" = "true" ]; then
+    TAMPER="\033[1;31m⚠TAMPER${R} "
+fi
+
+echo -e "${TAMPER}${C}${BAR}${R} 0.${SCORE} ${BADGE} ${DIM}#${TOTAL}${R}  [$MODEL] ${PCT}% ctx"

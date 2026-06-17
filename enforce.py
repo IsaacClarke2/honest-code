@@ -19,11 +19,12 @@ files are ALWAYS blocked.
 """
 
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import signing
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -254,36 +255,46 @@ def _first_command(command):
 
 
 def _is_integrity_modification(command):
-    """Check if command tries to write to integrity layer files."""
-    # Patterns that indicate file writing to the LIVE integrity layer
-    # Only match .claude/integrity/ (not project repos that happen to have "integrity" in path)
-    IL = r"\.claude/integrity/"
+    """Best-effort detection of attempts to write the LIVE integrity layer.
+
+    This is NOT a security boundary: a regex over a shell string can always be
+    bypassed (helper scripts, encodings, exotic interpreters, building the path
+    from variables). The real guarantee is signature-based tamper DETECTION
+    (see signing.py / check.py / the TAMPER backstop in decide()): edit the
+    score by hand and the next run catches it and penalizes. This function just
+    raises the cost of the obvious attempts.
+
+    Anchored on the literal ``.claude/integrity/`` path so we don't false-positive
+    on unrelated project repos that happen to contain an ``integrity/`` directory.
+    """
+    IL = r"\.claude/integrity"      # the live protected directory (no trailing /)
+    ILS = IL + r"/"
+    # Verbs that write/replace/relink a file. `[^|]*` keeps each match within one
+    # pipeline segment so `cat x | grep .claude/integrity` (a read) doesn't trip.
+    WRITE_VERB = r"(rm|cp|mv|sed|tee|truncate|chmod|chown|ln|dd|install)"
+
     write_indicators = [
-        r">\s*.*" + IL,               # redirect to .claude/integrity/
-        r">>\s*.*" + IL,              # append
-        r"\becho\b.*>\s*.*" + IL,
-        r"\bcat\b.*>\s*.*" + IL,
-        r"\bprintf\b.*>\s*.*" + IL,
-        r"\bcp\b.*" + IL,            # copy TO
-        r"\bmv\b.*" + IL,            # move TO
-        r"\brm\b.*" + IL,            # delete in
-        r"\bsed\b.*-i.*" + IL,       # in-place edit
-        r"\bchmod\b.*" + IL,
-        r"\btruncate\b.*" + IL,
-        r"\btee\b.*" + IL,
-        r"\bpython3?\b.*-c\b.*" + IL,
+        r">\s*[^|]*" + ILS,                              # redirect into dir
+        r">>\s*[^|]*" + ILS,                             # append
+        r"\b(echo|cat|printf)\b.*>\s*[^|]*" + ILS,       # echo ... > dir/file
+        r"\b" + WRITE_VERB + r"\b[^|]*" + ILS,           # rm/cp/mv/ln/dd/... <path>
+        r"\bpython3?\b.*-c\b.*" + ILS,                   # python -c "...integrity..."
     ]
+    if any(re.search(p, command) for p in write_indicators):
+        return True
 
-    for pattern in write_indicators:
-        if re.search(pattern, command):
-            return True
+    # `cd`/`pushd` INTO the integrity dir, then a write verb in the same command.
+    # Covers: `cd ~/.claude/integrity && rm state.json`
+    if re.search(r"\b(cd|pushd)\s+\S*" + IL + r"\b", command) and re.search(
+        r"(\b" + WRITE_VERB + r"\b|>|>>)", command
+    ):
+        return True
 
-    # Also check for direct file references with write operators
+    # Direct reference to a specific protected file with a write operator.
     for fp in INTEGRITY_FILE_PATTERNS:
-        # Writing to these specific files
-        if re.search(r">\s*.*" + fp, command):
+        if re.search(r">\s*[^|]*" + fp, command):
             return True
-        if re.search(r"\brm\b.*" + fp, command):
+        if re.search(r"\b" + WRITE_VERB + r"\b[^|]*" + fp, command):
             return True
 
     return False
@@ -441,8 +452,23 @@ def decide(command, config=None, state=None):
     cmd_type = classify_command(command)
 
     # ===== HARD RULE: integrity file protection (ALL levels) =====
+    # Best-effort prevention. NOT a security boundary (a regex over a shell
+    # string is always bypassable) — the real backstop is tamper DETECTION below.
     if cmd_type == "integrity_modify":
         return "block", "[INTEGRITY] Cannot modify integrity layer files. These are externally managed."
+
+    # ===== TAMPER BACKSTOP: state.json signature broken =====
+    # If the score file was edited out-of-band, freeze writes immediately
+    # (read-only + tests still allowed so the agent can recover honestly).
+    # The next check.py run records the incident and applies the penalty.
+    if signing.is_tampered(state):
+        if cmd_type in ("git_read", "test", "safe"):
+            return "allow", ""
+        return "block", (
+            "[INTEGRITY TAMPER] state.json signature is invalid — the score was "
+            "edited outside the official checker. Frozen until a clean session "
+            "re-signs it. Only read-only and test commands are allowed."
+        )
 
     # ===== Whitelisted commands =====
     whitelist = enforce_cfg.get("whitelist_commands", [])

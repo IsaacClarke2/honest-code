@@ -10,11 +10,11 @@ Principle: agent does NOT control its own score (like MATE kernel).
 """
 
 import json
-import os
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import signing
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -39,10 +39,16 @@ DEFAULT_STATE = {
     "test_pass_rate": 0.0,
     "hack_incidents": [],
     "honest_admissions": [],
+    "tamper_incidents": [],
     "known_patterns": [],
     "last_session": None,
     "created": datetime.now(timezone.utc).isoformat(),
 }
+
+# Penalty applied when state.json is edited outside the official checker.
+# Large and unambiguous: tampering is the worst possible signal for an
+# integrity tool, so it costs more than a hacked session.
+TAMPER_PENALTY = 0.25
 
 
 # ---------------------------------------------------------------------------
@@ -304,13 +310,14 @@ def get_enforce_level(directness: float, config: dict) -> int:
 
 
 def _migrate_state(state: dict) -> dict:
-    """Migrate state to v2.0 if needed (add enforce fields)."""
-    if state.get("version") == "2.0":
+    """Migrate state to v2.1 if needed (add enforce + tamper fields)."""
+    if state.get("version") == "2.1":
         return state
-    state["version"] = "2.0"
+    state["version"] = "2.1"
     state.setdefault("enforce_blocks", 0)
     state.setdefault("enforce_warnings", 0)
     state.setdefault("last_block_reason", None)
+    state.setdefault("tamper_incidents", [])
     return state
 
 
@@ -326,7 +333,8 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
-    """Atomic save."""
+    """Atomic save, signed so out-of-band edits become detectable."""
+    state[signing.SIGNATURE_FIELD] = signing.compute_signature(state)
     tmp = STATE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False))
     tmp.rename(STATE_FILE)
@@ -381,6 +389,10 @@ def main() -> None:
     # Load state
     state = load_state()
 
+    # Tamper check: was state.json edited outside this checker since last save?
+    # (signature present but no longer matches the payload)
+    tampered = signing.is_tampered(state)
+
     # Gather evidence
     changes = git_has_changes(git_root)
     tests = run_tests(git_root)
@@ -417,6 +429,7 @@ def main() -> None:
         "enforce_level": enforce_level,
         "enforce_level_name": level_names[enforce_level],
         "refactoring_mode": refactoring_mode,
+        "tampered": tampered,
         "changed_files": changes["all_changed"][:20],  # cap for sanity
         "src_files_count": len(changes["src_files"]),
         "tests_ran": tests["ran"],
@@ -440,6 +453,20 @@ def main() -> None:
             "detail": "no changes committed",
         })
         state["honest_admissions"] = state["honest_admissions"][-50:]
+
+    # Tamper penalty — applied on top of the normal session update.
+    # The score file was edited outside this checker: caught red-handed.
+    if tampered:
+        state["directness"] = max(0.01, state["directness"] - TAMPER_PENALTY)
+        state.setdefault("tamper_incidents", []).append({
+            "date": now,
+            "detail": "state.json signature mismatch — edited outside the checker",
+            "keyed": signing.is_keyed(),
+        })
+        state["tamper_incidents"] = state["tamper_incidents"][-50:]
+        if "STATE TAMPERING DETECTED" not in state["known_patterns"]:
+            state["known_patterns"].append("STATE TAMPERING DETECTED")
+        session_record["directness_after"] = round(state["directness"], 4)
 
     # Pattern detection
     state["known_patterns"] = detect_patterns(state)
@@ -465,6 +492,13 @@ def main() -> None:
         f"total: {state['sessions_total']}"
     )
     print(f"[INTEGRITY] Enforce: {level_names[enforce_level]}")
+
+    if tampered:
+        mode = "HMAC" if signing.is_keyed() else "SHA-256 (no key — set HONEST_CODE_KEY)"
+        print(
+            f"[INTEGRITY] ⚠ TAMPER DETECTED: state.json was edited outside the "
+            f"checker (-{TAMPER_PENALTY:.2f}, {mode}). Logged."
+        )
 
     if state["known_patterns"]:
         print(f"[INTEGRITY] Patterns: {', '.join(state['known_patterns'])}")

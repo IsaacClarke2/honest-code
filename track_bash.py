@@ -13,7 +13,6 @@ TOOL_OUTPUT from stdin (piped by hook system).
 """
 
 import json
-import os
 import re
 import sys
 from datetime import datetime, timezone

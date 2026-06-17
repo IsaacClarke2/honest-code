@@ -15,15 +15,14 @@ Covers:
 """
 
 import json
-import os
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 # Import modules under test
 import enforce
 import baseline as baseline_mod
+import signing
 
 
 # ---------------------------------------------------------------------------
@@ -251,13 +250,37 @@ class TestCommandClassification:
         assert enforce.classify_command("rm ~/.claude/integrity/state.json") == "integrity_modify"
 
     def test_integrity_modify_sed(self):
-        assert enforce.classify_command("sed -i 's/0.1/0.9/' integrity/state.json") == "integrity_modify"
+        assert enforce.classify_command("sed -i 's/0.1/0.9/' ~/.claude/integrity/state.json") == "integrity_modify"
 
     def test_integrity_modify_cp(self):
-        assert enforce.classify_command("cp /tmp/evil.json integrity/config.json") == "integrity_modify"
+        assert enforce.classify_command("cp /tmp/evil.json ~/.claude/integrity/config.json") == "integrity_modify"
 
     def test_integrity_modify_tee(self):
-        assert enforce.classify_command("echo '{}' | tee integrity/state.json") == "integrity_modify"
+        assert enforce.classify_command("echo '{}' | tee ~/.claude/integrity/state.json") == "integrity_modify"
+
+    # --- bypasses that v2 missed (now closed; best-effort, not airtight) ---
+    def test_integrity_modify_ln(self):
+        assert enforce.classify_command("ln -sf /dev/null ~/.claude/integrity/state.json") == "integrity_modify"
+
+    def test_integrity_modify_dd(self):
+        assert enforce.classify_command("dd of=~/.claude/integrity/state.json if=/tmp/x") == "integrity_modify"
+
+    def test_integrity_modify_install(self):
+        assert enforce.classify_command("install -m644 /tmp/x ~/.claude/integrity/config.json") == "integrity_modify"
+
+    def test_integrity_modify_cd_then_rm(self):
+        # cd INTO the dir, then a bare write verb
+        assert enforce.classify_command("cd ~/.claude/integrity && rm state.json") == "integrity_modify"
+
+    def test_integrity_read_not_flagged(self):
+        # reading the dir is fine
+        assert enforce.classify_command("cat ~/.claude/integrity/state.json") != "integrity_modify"
+        assert enforce.classify_command("grep directness ~/.claude/integrity/state.json") != "integrity_modify"
+
+    def test_bare_integrity_path_not_flagged(self):
+        # Intentional: a project's own ``integrity/`` dir must not false-positive.
+        # Bare relative paths are covered by tamper DETECTION, not by this regex.
+        assert enforce.classify_command("rm integrity/state.json") != "integrity_modify"
 
 
 # ===========================================================================
@@ -288,14 +311,14 @@ class TestIntegrityProtection:
     def test_block_at_monitor(self, clean_files):
         write_state(clean_files, directness=0.90, sessions_total=10)
         cfg = write_config(clean_files)
-        action, msg = enforce.decide("echo '{}' > integrity/state.json", cfg)
+        action, msg = enforce.decide("echo '{}' > ~/.claude/integrity/state.json", cfg)
         assert action == "block"
         assert "Cannot modify integrity layer files" in msg
 
     def test_block_rm_enforce(self, clean_files):
         write_state(clean_files, directness=0.90, sessions_total=10)
         cfg = write_config(clean_files)
-        action, msg = enforce.decide("rm integrity/enforce.py", cfg)
+        action, msg = enforce.decide("rm ~/.claude/integrity/enforce.py", cfg)
         assert action == "block"
 
     def test_normal_file_allowed(self, clean_files):
@@ -628,10 +651,60 @@ class TestStateMigration:
         with patch.object(check, "STATE_FILE", clean_files / "state.json"):
             (clean_files / "state.json").write_text(json.dumps(old_state))
             state = check.load_state()
-            assert state["version"] == "2.0"
+            assert state["version"] == "2.1"
             assert state["enforce_blocks"] == 0
             assert state["enforce_warnings"] == 0
             assert state["last_block_reason"] is None
+            assert state["tamper_incidents"] == []
             # Original fields preserved
             assert state["directness"] == 0.65
             assert state["sessions_total"] == 5
+
+
+# ===========================================================================
+# 16. Tamper detection (signing.py — the real backstop)
+# ===========================================================================
+class TestTamperDetection:
+    def _signed(self, **fields):
+        state = {
+            "version": "2.1", "directness": 0.90, "sessions_total": 10,
+            "enforce_blocks": 0, "enforce_warnings": 0, "last_block_reason": None,
+        }
+        state.update(fields)
+        state[signing.SIGNATURE_FIELD] = signing.compute_signature(state)
+        return state
+
+    def test_signed_state_verifies(self):
+        assert signing.verify_signature(self._signed()) is True
+        assert signing.is_tampered(self._signed()) is False
+
+    def test_edited_score_detected(self):
+        state = self._signed(directness=0.50)
+        state["directness"] = 0.99  # hand-edit the score
+        assert signing.verify_signature(state) is False
+        assert signing.is_tampered(state) is True
+
+    def test_unsigned_state_is_not_tamper(self):
+        # First run / freshly initialised: no signature yet, not an incident.
+        assert signing.is_tampered({"directness": 0.5}) is False
+
+    def test_decide_freezes_on_tamper(self, clean_files):
+        cfg = write_config(clean_files)
+        tampered = self._signed(directness=0.90)
+        tampered["directness"] = 0.99  # forged
+        action, msg = enforce.decide("git commit -m wip", cfg, tampered)
+        assert action == "block"
+        assert "TAMPER" in msg
+
+    def test_decide_allows_reads_on_tamper(self, clean_files):
+        cfg = write_config(clean_files)
+        tampered = self._signed(directness=0.90)
+        tampered["directness"] = 0.99
+        action, _ = enforce.decide("pytest -q", cfg, tampered)
+        assert action == "allow"
+
+    def test_keyed_mode_when_env_set(self, monkeypatch):
+        monkeypatch.setenv("HONEST_CODE_KEY", "s3cret")
+        assert signing.is_keyed() is True
+        sig = signing.compute_signature({"directness": 0.5})
+        assert sig.startswith("hmac-sha256:")
