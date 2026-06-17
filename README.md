@@ -1,14 +1,22 @@
-# honest-code
+<p align="center">
+  <img src="banner.png" alt="honest-code" width="760">
+</p>
 
-[![CI](https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml/badge.svg)](https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml)
-![license](https://img.shields.io/badge/license-MIT-blue)
-![python](https://img.shields.io/badge/python-3.8%2B-blue)
+<p align="center">
+  <a href="https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml"><img src="https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/tests-93%20passing-3fb950" alt="tests">
+  <img src="https://img.shields.io/badge/deps-stdlib%20only-3fb950" alt="stdlib only">
+  <img src="https://img.shields.io/badge/Claude%20Code-hooks-e8956b" alt="Claude Code">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT">
+</p>
 
-![honest-code banner](banner.png)
+<p align="center"><b>Claude Code cheats when desperate. This catches it.</b></p>
 
-**Claude Code cheats when desperate. This catches it.**
+<p align="center">
+  <img src="honesty_chart.png" alt="A real agent's honesty over 2,948 sessions" width="100%">
+</p>
 
-![honest-code diagram](diagram.png)
+<p align="center"><sub>A real agent on this server — 2,948 sessions. The score comes from git + pytest, not self-reports, so it doesn't flatter anyone: it caught a productivity collapse on one model that recovered after rollback. (May 2 was one stuck run flagged repeatedly — likely a false flag. Honest tools show their warts too.)</sub></p>
 
 ---
 
@@ -17,6 +25,8 @@ Anthropic published research showing Claude has internal "desperation" vectors t
 This is a hook-based integrity tracker for Claude Code. After every session, an external script checks what the agent actually did — git diffs, test results, code changes — and compares it to reality. The agent doesn't control its own score. It just reads it.
 
 ## What it does
+
+![how it works](diagram.png)
 
 After every Claude Code session, a Stop hook runs `check.py`:
 

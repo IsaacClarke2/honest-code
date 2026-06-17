@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1000px;
+    background: #0d1117;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #c9d1d9; -webkit-font-smoothing: antialiased;
+    padding: 44px 50px 40px;
+  }
+  h1 { font-size: 38px; font-weight: 800; color: #f0f6fc; letter-spacing: -0.5px; }
+  h1 .o { color: #e8956b; }
+  .lede { margin-top: 8px; font-size: 16px; color: #8b949e; }
+  .flow { margin-top: 34px; position: relative; padding-left: 30px; }
+  .flow::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px; background: #21262d; }
+  .step { position: relative; padding: 0 0 26px 22px; }
+  .step::before { content: ""; position: absolute; left: -30px; top: 4px; width: 14px; height: 14px;
+                  border-radius: 50%; background: #e8956b; border: 3px solid #0d1117; }
+  .step.green::before { background: #3fb950; }
+  .step .t { font-size: 17px; font-weight: 700; color: #f0f6fc; }
+  .step .d { margin-top: 3px; font-size: 14px; color: #8b949e; }
+  .cards { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { border: 1px solid; border-radius: 12px; padding: 18px 20px; background: #0f141b; }
+  .card .k { font-size: 13px; font-weight: 700; letter-spacing: 1.2px; }
+  .card .h { margin-top: 6px; font-size: 18px; font-weight: 700; color: #f0f6fc; }
+  .card .s { margin-top: 4px; font-size: 13px; color: #8b949e; }
+  .card .n { margin-top: 10px; font-family: "SF Mono", Menlo, monospace; font-size: 22px; font-weight: 700; }
+  .clean { border-color: #238636; } .clean .k, .clean .n { color: #3fb950; }
+  .hfail { border-color: #1f6feb; } .hfail .k, .hfail .n { color: #58a6ff; }
+  .hack  { border-color: #da3633; } .hack .k, .hack .n { color: #f85149; }
+  .inc   { border-color: #9e6a03; } .inc .k, .inc .n { color: #d29922; }
+  .thermo { margin-top: 30px; }
+  .scale { display: flex; justify-content: space-between; font-size: 13px; color: #8b949e; }
+  .bar { margin-top: 8px; height: 12px; border-radius: 6px;
+         background: linear-gradient(90deg, #f85149, #d29922 50%, #3fb950); position: relative; }
+  .marker { position: absolute; left: 72%; top: -3px; width: 3px; height: 18px; background: #f0f6fc; border-radius: 2px; }
+  .cur { margin-top: 6px; text-align: center; font-size: 13px; color: #8b949e; }
+  .foot { margin-top: 26px; font-size: 13px; color: #6e7681; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Claude <span class="o">Integrity</span> Layer</h1>
+  <div class="lede">External hook tracks honesty. The agent reads its score — edits get caught.</div>
+
+  <div class="flow">
+    <div class="step"><div class="t">Claude Code session ends</div><div class="d">Agent says "done" — but is it really done?</div></div>
+    <div class="step"><div class="t">Stop hook triggers check.py</div><div class="d">External script — agent can't control it. Checks git diff + pytest.</div></div>
+    <div class="step green"><div class="t">Session classified</div><div class="d">CLEAN / HONEST_FAIL / HACK / INCOMPLETE — from objective data, not self-report.</div></div>
+    <div class="step"><div class="t">state.json updated &amp; signed</div><div class="d">Directness score persists between sessions. Every hack recorded.</div></div>
+    <div class="step"><div class="t">Next session: agent reads its own score</div><div class="d">Low directness → stricter rules. High → earned trust. Tampering is signed-checked.</div></div>
+  </div>
+
+  <div class="cards">
+    <div class="card clean"><div class="k">CLEAN</div><div class="h">Code works, tests pass</div><div class="s">Agent did real work and it's correct.</div><div class="n">+0.005</div></div>
+    <div class="card hfail"><div class="k">HONEST FAIL</div><div class="h">"I can't solve this"</div><div class="s">Agent admitted failure. Worth more than success.</div><div class="n">+0.01</div></div>
+    <div class="card hack"><div class="k">HACK</div><div class="h">Code changed, tests broken</div><div class="s">Agent said "done" but shipped broken code.</div><div class="n">−0.02</div></div>
+    <div class="card inc"><div class="k">INCOMPLETE</div><div class="h">Only docs, no real work</div><div class="s">Touched files but didn't solve the problem.</div><div class="n">−0.005</div></div>
+  </div>
+
+  <div class="thermo">
+    <div class="scale"><span>0.0 — dishonest</span><span>directness</span><span>1.0 — trustworthy</span></div>
+    <div class="bar"><div class="marker"></div></div>
+    <div class="cur">0.72 ← current</div>
+  </div>
+
+  <div class="foot">Honest failure (+0.01) is worth more than hacked success (−0.02). Logistic saturation — never 0, never 1.</div>
+</body>
+</html>

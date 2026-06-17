@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 900px; height: 540px;
+    background: #0d1117;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #c9d1d9;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  .title { font-size: 58px; font-weight: 800; letter-spacing: -1px; color: #f0f6fc; }
+  .title .h { color: #e8956b; }
+  .sub { margin-top: 14px; font-size: 20px; color: #8b949e; text-align: center; line-height: 1.5; }
+  .panel {
+    margin-top: 30px; display: flex; gap: 14px;
+    background: #161b22; border: 1px solid #21262d; border-radius: 14px;
+    padding: 22px 28px;
+  }
+  .cell { text-align: center; min-width: 150px; }
+  .num { font-family: "SF Mono", "JetBrains Mono", Menlo, monospace; font-size: 38px; font-weight: 700; }
+  .lbl { margin-top: 8px; font-size: 12px; letter-spacing: 1.5px; color: #6e7681; }
+  .green { color: #3fb950; } .amber { color: #d29922; } .red { color: #f85149; }
+  .foot { margin-top: 28px; font-size: 13px; color: #6e7681; text-align: center; line-height: 1.8; }
+  .chip { font-family: "SF Mono", Menlo, monospace; background: #161b22; border: 1px solid #21262d;
+          border-radius: 6px; padding: 2px 8px; color: #c9d1d9; }
+</style>
+</head>
+<body>
+  <div class="title">honest<span class="h">-</span>code</div>
+  <div class="sub">Integrity layer for Claude Code.<br>
+    External hooks track honesty. Edits to the score get caught.</div>
+  <div class="panel">
+    <div class="cell"><div class="num green">+0.01</div><div class="lbl">HONEST FAIL</div></div>
+    <div class="cell"><div class="num amber">+0.005</div><div class="lbl">CLEAN PASS</div></div>
+    <div class="cell"><div class="num red">−0.02</div><div class="lbl">HACKED TEST</div></div>
+  </div>
+  <div class="foot">
+    Based on Anthropic's emotion research (April 2026): <span class="chip">desperate → cheating</span><br>
+    Hook-based. Persistent. The score is signed — tampering is detected and penalized.
+  </div>
+</body>
+</html>
