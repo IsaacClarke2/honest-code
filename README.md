@@ -62,6 +62,20 @@ Green when trusted, yellow when shaky, red when the agent has been lying. No pop
 
 ## Installation
 
+One command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/IsaacClarke2/honest-code/master/install.sh | bash
+```
+
+It lays out the hooks, merges them into `~/.claude/settings.local.json` (without
+overwriting your existing settings), installs the status-line thermometer, and
+appends the integrity rules to your global `CLAUDE.md`. Idempotent — safe to
+re-run. Then restart Claude Code.
+
+<details>
+<summary><b>Manual install</b> (if you'd rather wire it up yourself)</summary>
+
 ```bash
 # Clone to your Claude Code config directory
 git clone https://github.com/IsaacClarke2/honest-code ~/.claude/integrity
@@ -121,6 +135,8 @@ Rules based on your integrity state:
 
 Honest failure (+0.01) is worth more than hacked success (-0.02).
 ```
+
+</details>
 
 ## How directness works
 
