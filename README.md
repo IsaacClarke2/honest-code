@@ -12,10 +12,10 @@
 <p align="center"><b>Claude Code cheats when desperate. This catches it.</b></p>
 
 <p align="center">
-  <img src="honesty_chart.png" alt="A real agent's honesty over 2,948 sessions" width="100%">
+  <img src="score_dynamics.png" alt="Why honesty pays" width="100%">
 </p>
 
-<p align="center"><sub>A real agent on this server — 2,948 sessions. The score comes from git + pytest, not self-reports, so it doesn't flatter anyone: it caught a productivity collapse on one model that recovered after rollback. (May 2 was one stuck run flagged repeatedly — likely a false flag. Honest tools show their warts too.)</sub></p>
+<p align="center"><sub>Two agents, same sessions — the only difference is that one occasionally ships a broken test. A hack (−0.02) wipes out four clean passes (+0.005), so the corner-cutter never earns trust, while honest work (and an honest "I can't", +0.01) compounds. That's the whole incentive.</sub></p>
 
 ---
 
@@ -67,7 +67,9 @@ A live directness bar in your Claude Code status line — updates after every re
 ▰▰▰▰▰▰▰▱▱▱ 0.72 ✓ #47  [Opus] 8% ctx
 ```
 
-Green when trusted, yellow when shaky, red when the agent has been lying. No popups, no noise — just a number at the bottom of your terminal.
+![status line states](statusbar.png)
+
+Green when trusted, yellow when shaky, red when the agent has been lying — and a `⚠TAMPER` flag if the score file was edited out of band. No popups, no noise — just a number at the bottom of your terminal.
 
 ## Installation
 
@@ -242,6 +244,8 @@ The baseline snapshot records which tests were failing when the session started.
 `track_bash.py` hooks into every Bash tool call. When Claude Code runs pytest and tests fail, it records the result. If the agent then says "everything works" without fixing the failures, `check.py` catches the divergence.
 
 ## Tamper detection (v2.1)
+
+![tamper detection demo](demo.png)
 
 The blocking hook is best-effort, not a wall. The real backstop is that `state.json` is **signed** (`signing.py`):
 

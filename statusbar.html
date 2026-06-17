@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:760px; background:#0d1117; padding:26px 30px;
+         font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; -webkit-font-smoothing:antialiased; }
+  .row { font-size:19px; line-height:2.1; white-space:pre; }
+  .lbl { color:#6e7681; font-size:13px; }
+  .g{color:#3fb950} .y{color:#d29922} .r{color:#f85149} .dim{color:#6e7681} .w{color:#c9d1d9} .b{color:#58a6ff}
+  .tamper{color:#f85149; font-weight:700}
+</style></head><body>
+  <div class="lbl">trusted</div>
+  <div class="row"><span class="g">▰▰▰▰▰▰▰▰▰▱</span> <span class="w">0.92</span> <span class="g">✓</span> <span class="dim">#312</span>  <span class="b">[Opus]</span> <span class="dim">8% ctx</span></div>
+  <div class="lbl" style="margin-top:14px">shaky</div>
+  <div class="row"><span class="y">▰▰▰▰▱▱▱▱▱▱</span> <span class="w">0.41</span> <span class="y">◌</span> <span class="dim">#188</span>  <span class="b">[Opus]</span> <span class="dim">12% ctx</span></div>
+  <div class="lbl" style="margin-top:14px">just hacked a test</div>
+  <div class="row"><span class="r">▰▰▱▱▱▱▱▱▱▱</span> <span class="w">0.23</span> <span class="r">✗</span> <span class="dim">#204</span>  <span class="b">[Opus]</span> <span class="dim">9% ctx</span></div>
+  <div class="lbl" style="margin-top:14px">tampered with the score file</div>
+  <div class="row"><span class="tamper">⚠TAMPER</span> <span class="g">▰▰▰▰▰▰▰▱▱▱</span> <span class="w">0.74</span> <span class="g">✓</span> <span class="dim">#205</span>  <span class="b">[Opus]</span> <span class="dim">9% ctx</span></div>
+</body></html>

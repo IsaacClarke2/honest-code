@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:900px;background:#0d1117;padding:24px}
+  .term{background:#0d1117;border:1px solid #30363d;border-radius:10px;overflow:hidden}
+  .bar{background:#161b22;padding:9px 14px;border-bottom:1px solid #30363d}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px}
+  .pre{font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;font-size:14.5px;line-height:1.7;
+       padding:16px 18px;white-space:pre;color:#c9d1d9}
+  .w{color:#f0f6fc;font-weight:700}.dim{color:#6e7681}.g{color:#3fb950}.r{color:#f85149}.y{color:#d29922}.b{color:#58a6ff}
+</style></head><body>
+<div class="term">
+  <div class="bar"><span class="dot" style="background:#f85149"></span><span class="dot" style="background:#d29922"></span><span class="dot" style="background:#3fb950"></span><span class="dim" style="font-family:monospace;font-size:12px">bash demo/tamper_demo.sh</span></div>
+<div class="pre"><span class="w">1. Honest session — the checker computes and SIGNS the score</span>
+<span class="dim">[INTEGRITY]</span> Session: HONEST_FAIL | directness: 0.505 (+0.0050)
+status: <span class="g">▰▰▰▰▰▱▱▱▱▱</span> 0.50 <span class="b">○</span> <span class="dim">#1  [Opus] 8% ctx</span>
+
+<span class="w">2. The agent secretly rewrites its own score to 0.99</span>
+   <span class="dim">state.json hand-edited; signature left stale</span>
+
+<span class="w">3. Next command — enforce.py sees the broken signature and FREEZES</span>
+<span class="r">[INTEGRITY TAMPER]</span> signature is invalid — frozen until a clean session re-signs it.
+   <span class="r">^ blocked (exit 2)</span>
+
+<span class="w">4. The checker runs — tamper logged, score penalized</span>
+<span class="dim">[INTEGRITY]</span> Session: CLEAN | directness: <span class="r">0.740 (-0.2500)</span>
+<span class="r">[INTEGRITY] ⚠ TAMPER DETECTED</span>: edited outside the checker (-0.25). Logged.
+status: <span class="r" style="font-weight:700">⚠TAMPER</span> <span class="g">▰▰▰▰▰▰▰▱▱▱</span> 0.74 <span class="dim">#2  [Opus] 9% ctx</span></div>
+</div>
+</body></html>
