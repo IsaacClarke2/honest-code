@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml"><img src="https://github.com/IsaacClarke2/honest-code/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/tests-93%20passing-3fb950" alt="tests">
   <img src="https://img.shields.io/badge/deps-stdlib%20only-3fb950" alt="stdlib only">
   <img src="https://img.shields.io/badge/Claude%20Code-hooks-e8956b" alt="Claude Code">
